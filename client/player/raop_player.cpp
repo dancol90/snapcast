@@ -16,6 +16,8 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ***/
 
+#define NOGDI
+
 // prototype/interface header file
 #include "raop_player.hpp"
 
@@ -26,12 +28,11 @@
 #include "common/utils/string_utils.hpp"
 
 // 3rd party headers
+#include <raop_client.h>
 
 // standard headers
 
 using namespace std;
-
-#include <raop_client.h>
 
 namespace player
 {
@@ -85,15 +86,13 @@ void RAOPPlayer::worker()
 {
     // TODO Check that format is 44100:16:2?
   
+    // Create buffer for audio data
     auto & format = stream_->getFormat();    
     const auto buffer_size = FRAMES_PER_CHUNK * format.frameSize();
     const auto buffer_duration = std::chrono::milliseconds(TS2MS(FRAMES_PER_CHUNK, format.rate()));
-    
     std::vector<uint8_t> buffer(buffer_size);
 
     LOG(INFO, LOG_TAG) << "Creating RAOP controller\n";
-
-    // ...
 
     raopcl_s* raopcl = raopcl_create(
       in_addr{ INADDR_ANY },
@@ -101,12 +100,12 @@ void RAOPPlayer::worker()
       NULL, NULL,   // DACP id and active remote
       RAOP_PCM,     // Codec
       FRAMES_PER_CHUNK,
-      MS2TS(250, 44100), // Latency 
+      MS2TS(250, 44100), // Latency (min 250ms)
       raop_crypto_t::RAOP_CLEAR, 
       false, "", "", 
       "4", "",      // et & md 
       format.rate(), format.bits(), format.channels(),   // Audio format
-      raopcl_float_volume(/*volume_.volume * 100*/5) // TODO get current volume
+      raopcl_float_volume(volume_.volume * 100) // TODO get current volume
     );
 
     if (!raopcl)
@@ -114,7 +113,7 @@ void RAOPPlayer::worker()
 
     LOG(INFO, LOG_TAG) << "Connecting to device\n";
 
-    // get player's address
+    // Resolve player address
     auto hostent = gethostbyname(_host.c_str());
     if (!hostent)
         throw SnapException("Cannot resolve name " + _host);
@@ -122,7 +121,7 @@ void RAOPPlayer::worker()
     in_addr addr;
     memcpy(&addr.s_addr, hostent->h_addr_list[0], hostent->h_length);
 
-    // connect to player
+    // Actually connect to the player
     if (!raopcl_connect(raopcl, addr, _port, true))
         throw SnapException("Cannot connect to AirPlay device " + _host + ":" + std::to_string(_port) + ", check firewall & port");
 
@@ -136,6 +135,20 @@ void RAOPPlayer::worker()
     uint64_t playtime;
     while (active_)
     {
+        if (!raopcl_is_sane(raopcl))
+        {
+            LOG(ERROR, LOG_TAG) << "Broken connection, restoring...\n";
+            if (!raopcl_repair(raopcl, true))
+            {
+                LOG(ERROR, LOG_TAG) << "Cannot reconnect, waiting 5s before retrying\n";
+                std::this_thread::sleep_for(5s);
+                continue;
+            }
+            
+            // Reconnected, restart streaming
+            paused = false;
+        }
+
         if (paused)
         {
             if (stream_->waitForChunk(10ms))
@@ -146,12 +159,12 @@ void RAOPPlayer::worker()
         }
         else if (raopcl_accept_frames(raopcl))
         {
-            if (stream_->getPlayerChunkOrSilence(buffer.data(), latency, FRAMES_PER_CHUNK))
+            if (stream_->getPlayerChunk(buffer.data(), latency, FRAMES_PER_CHUNK))
             {
                 LOG(DEBUG, LOG_TAG) << "Sending chunk of size " << buffer.size() << "\n";
                 raopcl_send_chunk(raopcl, buffer.data(), FRAMES_PER_CHUNK, &playtime);
             }
-            else 
+            else
             {
                 LOG(INFO, LOG_TAG) << "Pausing streaming " << "\n ";
                 raopcl_pause(raopcl);
