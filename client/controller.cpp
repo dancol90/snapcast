@@ -62,6 +62,7 @@
 #endif
 
 #include "player/file_player.hpp"
+#include "player/raop_player.hpp"
 
 #include "browseZeroConf/browse_zeroconf.hpp"
 #include "common/aixlog.hpp"
@@ -177,6 +178,7 @@ std::vector<std::string> Controller::getSupportedPlayerNames()
 #endif
 
     result.emplace_back(player::FILE);
+    result.emplace_back(player::RAOP);
     return result;
 }
 
@@ -293,6 +295,9 @@ void Controller::getNextMessage()
 
             if (!player_ && (settings_.player.player_name == player::FILE))
                 player_ = createPlayer<FilePlayer>(settings_.player, player::FILE);
+
+            if (!player_ && (settings_.player.player_name == player::RAOP))
+                player_ = createPlayer<RAOPPlayer>(settings_.player, player::RAOP);
 
             if (!player_)
                 throw SnapException("No audio player support" + (settings_.player.player_name.empty() ? "" : " for: " + settings_.player.player_name));
