@@ -56,6 +56,8 @@ private:
 
     std::string _host;
     int _port;
+    std::string _et;
+    bool _use_raw_pcm;
 
     bool _volumeChangeRequested = false;
 };
