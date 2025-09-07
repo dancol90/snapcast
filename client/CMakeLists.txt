@@ -101,6 +101,7 @@ if(NOT ANDROID AND OPENSSL_FOUND)
 
   list(APPEND CLIENT_SOURCES player/raop_player.hpp player/raop_player.cpp)
   list(APPEND CLIENT_LIBRARIES libraop)
+  add_compile_definitions(HAS_RAOP)
 endif()
 
 if(ANDROID)

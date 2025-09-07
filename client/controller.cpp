@@ -60,9 +60,11 @@
 #ifdef HAS_SDL2
 #include "player/sdl2_player.hpp"
 #endif
-
-#include "player/file_player.hpp"
+#ifdef HAS_RAOP
 #include "player/raop_player.hpp"
+#endif
+#include "player/file_player.hpp"
+
 
 #include "browseZeroConf/browse_zeroconf.hpp"
 #include "common/aixlog.hpp"
@@ -176,9 +178,10 @@ std::vector<std::string> Controller::getSupportedPlayerNames()
 #ifdef HAS_SDL2
     result.emplace_back(player::SDL2);
 #endif
-
-    result.emplace_back(player::FILE);
+#ifdef HAS_RAOP
     result.emplace_back(player::RAOP);
+#endif
+    result.emplace_back(player::FILE);
     return result;
 }
 
@@ -292,12 +295,12 @@ void Controller::getNextMessage()
             if (!player_)
                 player_ = createPlayer<Sdl2Player>(settings_.player, player::SDL2);
 #endif
-
+#ifdef HAS_RAOP
+            if (!player_)
+                player_ = createPlayer<RAOPPlayer>(settings_.player, player::RAOP);
+#endif
             if (!player_ && (settings_.player.player_name == player::FILE))
                 player_ = createPlayer<FilePlayer>(settings_.player, player::FILE);
-
-            if (!player_ && (settings_.player.player_name == player::RAOP))
-                player_ = createPlayer<RAOPPlayer>(settings_.player, player::RAOP);
 
             if (!player_)
                 throw SnapException("No audio player support" + (settings_.player.player_name.empty() ? "" : " for: " + settings_.player.player_name));
