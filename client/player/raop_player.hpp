@@ -54,12 +54,12 @@ private:
     void worker() override;
     bool needsThread() const override { return true; }
 
-    std::string _host;
-    int _port;
-    std::string _et;
-    bool _use_raw_pcm;
-
-    bool _volumeChangeRequested = false;
+    raopcl_s* raopcl = nullptr;
+    std::string host_;
+    int port_ = 5000;
+    std::string et_;
+    bool usePCMEncoding_ = false;
+    bool volumeChangeRequested_ = false;
 };
 
 } // namespace player

@@ -75,18 +75,18 @@ RAOPPlayer::RAOPPlayer(boost::asio::io_context& io_context, const ClientSettings
     auto params = utils::string::split_pairs(settings.parameter, ',', '=');
 
     auto it = params.find("host");
-    _host = it != params.end() ? it->second : throw SnapException("Please specify a AirPlay host (raop:host=<ip>[,port=<port>])");
+    host_ = it != params.end() ? it->second : throw SnapException("Please specify a AirPlay host (raop:host=<ip>[,port=<port>])");
 
     it = params.find("port");
-    _port = it != params.end() ? ParseInt(it->second) : 5000;
+    port_ = it != params.end() ? ParseInt(it->second) : 5000;
 
     it = params.find("et");
-    _et = it != params.end() ? it->second : "0";
+    et_ = it != params.end() ? it->second : "0";
 
     it = params.find("pcm");
-    _use_raw_pcm = it != params.end() ? ParseBool(it->second) : true;
+    usePCMEncoding_ = it != params.end() ? ParseBool(it->second) : true;
 
-    LOG(DEBUG, LOG_TAG) << "Requested RAOP device " << _host << ":" << _port << "\n";
+    LOG(DEBUG, LOG_TAG) << "Requested RAOP device " << host_ << ":" << port_ << "\n";
 }
 
 RAOPPlayer::~RAOPPlayer()
@@ -99,7 +99,7 @@ void RAOPPlayer::setVolume(const Volume& volume)
     if (volume_ == volume)
         return;
     volume_ = volume;
-    _volumeChangeRequested = true;
+    volumeChangeRequested_ = true;
 }
 
 void RAOPPlayer::worker()
@@ -118,12 +118,12 @@ void RAOPPlayer::worker()
       in_addr{ INADDR_ANY },
       0, 0,                                   // Port base and range
       NULL, NULL,                             // DACP id and active remote
-      _use_raw_pcm ? RAOP_PCM : RAOP_AAC,     // Codec
+      usePCMEncoding_ ? RAOP_PCM : RAOP_AAC, // Codec
       FRAMES_PER_CHUNK,                       // Chunk length
       MS2TS(250, 44100),                      // Latency (min 250ms)
       raop_crypto_t::RAOP_CLEAR,              // Encryption
       false, "", "",                          // Authentication and pairing secret
-      _et.data(), "",                         // Capabilities (as announced through mDNS)
+      et_.data(), "",                        // Capabilities (as announced through mDNS)
       format.rate(), format.bits(), format.channels(),
       raopcl_float_volume(volume_.volume * 100)
     );
@@ -134,16 +134,16 @@ void RAOPPlayer::worker()
     LOG(INFO, LOG_TAG) << "Connecting to device\n";
 
     // Resolve player address
-    auto hostent = gethostbyname(_host.c_str());
+    auto hostent = gethostbyname(host_.c_str());
     if (!hostent)
-        throw SnapException("Cannot resolve name '" + _host + "'");
+        throw SnapException("Cannot resolve name '" + host_ + "'");
 
     in_addr addr;
     memcpy(&addr.s_addr, hostent->h_addr_list[0], hostent->h_length);
 
     // Actually connect to the player
-    if (!raopcl_connect(raopcl, addr, _port, true))
-        throw SnapException("Cannot connect to AirPlay device " + _host + ":" + std::to_string(_port));
+    if (!raopcl_connect(raopcl, addr, port_, true))
+        throw SnapException("Cannot connect to AirPlay device " + host_ + ":" + std::to_string(port_));
 
     LOG(INFO, LOG_TAG) << "Connected, start sending audio\n";
 
@@ -200,13 +200,13 @@ void RAOPPlayer::worker()
             std::this_thread::sleep_for(10ms);
         }
 
-        if (_volumeChangeRequested)
+        if (volumeChangeRequested_)
         {
             int newVol = volume_.mute ? 0 : volume_.volume * 100;
             LOG(INFO, LOG_TAG) << "Changing device volume to " << std::to_string(newVol) << "\n";
             raopcl_set_volume(raopcl, raopcl_float_volume(newVol));
 
-            _volumeChangeRequested = false;
+            volumeChangeRequested_ = false;
         }
     }
 
