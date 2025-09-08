@@ -90,20 +90,6 @@ if(OPENSSL_FOUND)
   endif()
 endif()
 
-if(NOT ANDROID AND OPENSSL_FOUND)
-  include(FetchContent)
-  FetchContent_Declare(
-    libraop
-    GIT_REPOSITORY https://github.com/dancol90/libraop-min.git
-    GIT_TAG        master
-  )
-  FetchContent_MakeAvailable(libraop)
-
-  list(APPEND CLIENT_SOURCES player/raop_player.hpp player/raop_player.cpp)
-  list(APPEND CLIENT_LIBRARIES libraop)
-  add_compile_definitions(HAS_RAOP)
-endif()
-
 if(ANDROID)
   list(APPEND CLIENT_LIBRARIES oboe::oboe)
   list(APPEND CLIENT_LIBRARIES boost::boost)

@@ -120,6 +120,7 @@ option(BUILD_WITH_PULSE "Build with PulseAudio support" OFF)
 option(BUILD_WITH_JACK "Build with JACK support" OFF)
 option(BUILD_WITH_PIPEWIRE "Build with PipeWire support" OFF)
 option(BUILD_WITH_SDL2 "Build with SDL2 support" OFF)
+option(BUILD_WITH_RAOP "Build with AirPlay support support" OFF)
 
 if(NOT BUILD_SHARED_LIBS AND NOT BUILD_STATIC_LIBS)
   message(
@@ -347,6 +348,24 @@ if(BUILD_WITH_SSL)
   endif()
   # set OPENSSL_FOUND to TRUE for Android compatibility
   set(OPENSSL_FOUND TRUE)
+endif()
+
+if (BUILD_WITH_RAOP AND NOT ANDROID)
+  if(NOT BUILD_WITH_SSL)
+      message(FATAL_ERROR "Cannot build RAOP support without OpenSSL.")
+  endif()
+
+  include(FetchContent)
+  FetchContent_Declare(
+    libraop
+    GIT_REPOSITORY https://github.com/dancol90/libraop-min.git
+    GIT_TAG        master
+  )
+  FetchContent_MakeAvailable(libraop)
+
+  list(APPEND CLIENT_SOURCES player/raop_player.hpp player/raop_player.cpp)
+  list(APPEND CLIENT_LIBRARIES libraop)
+  add_compile_definitions(HAS_RAOP)
 endif()
 
 add_compile_definitions(BOOST_ERROR_CODE_HEADER_ONLY BOOST_ASIO_NO_TS_EXECUTORS

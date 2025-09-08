@@ -518,6 +518,16 @@ int main(int argc, char** argv)
                      << " \"buffer_time=<total buffer size [ms]>\" - default <not set, PipeWire will decide>, min 10\n";
             }
 #endif
+#ifdef HAS_RAOP
+            else if (settings.player.player_name == player::RAOP)
+            {
+                cout << "Options are a comma separated list of:\n"
+                     << " \"host=<AirPlay device address>\" - required\n"
+                     << " \"port=<AirPlay device port>\" - default 5000\n"
+                     << " \"pcm=<use PCM encoding instead of ALAC [bool]>\" - default false\n"
+                     << " \"et=<device flags>\" - as announced through mDNS - default '0'\n";
+            }
+#endif
             else
             {
                 cout << "No options available for \"" << settings.player.player_name << "\n";
