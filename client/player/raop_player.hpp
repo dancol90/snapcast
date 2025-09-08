@@ -30,6 +30,9 @@
 #include <cstdio>
 #include <memory>
 
+// forward declaration to avoid including header
+struct raopcl_s;
+
 namespace player
 {
 
@@ -41,12 +44,13 @@ public:
     /// c'tor
     RAOPPlayer(boost::asio::io_context& io_context, const ClientSettings::Player& settings, std::shared_ptr<Stream> stream);
     /// d'tor
-    ~RAOPPlayer() override;
+    ~RAOPPlayer() override = default;
 
     /// List the dummy file PCM device
     static std::vector<PcmDevice> pcm_list(const std::string& parameter);
 
     void setVolume(const Volume& volume) override;
+    void start() override;
 
 private:
     //void requestAudio();

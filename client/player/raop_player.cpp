@@ -89,11 +89,6 @@ RAOPPlayer::RAOPPlayer(boost::asio::io_context& io_context, const ClientSettings
     LOG(DEBUG, LOG_TAG) << "Requested RAOP device " << host_ << ":" << port_ << "\n";
 }
 
-RAOPPlayer::~RAOPPlayer()
-{
-    stop(); // NOLINT
-}
-
 void RAOPPlayer::setVolume(const Volume& volume)
 {
     if (volume_ == volume)
@@ -102,27 +97,20 @@ void RAOPPlayer::setVolume(const Volume& volume)
     volumeChangeRequested_ = true;
 }
 
-void RAOPPlayer::worker()
+void RAOPPlayer::start()
 {
-    // TODO Check that format is 44100:16:2?
-  
-    // Create buffer for audio data
-    auto & format = stream_->getFormat();    
-    const auto buffer_size = FRAMES_PER_CHUNK * format.frameSize();
-    const auto buffer_duration = std::chrono::milliseconds(TS2MS(FRAMES_PER_CHUNK, format.rate()));
-    std::vector<uint8_t> buffer(buffer_size);
-
     LOG(INFO, LOG_TAG) << "Creating RAOP controller\n";
 
-    raopcl_s* raopcl = raopcl_create(
-      in_addr{ INADDR_ANY },
-      0, 0,                                   // Port base and range
-      NULL, NULL,                             // DACP id and active remote
+    auto& format = stream_->getFormat();    
+    raopcl = raopcl_create(
+      in_addr{INADDR_ANY},
+      0, 0,             // Port base and range
+      NULL, NULL,                            // DACP id and active remote
       usePCMEncoding_ ? RAOP_PCM : RAOP_AAC, // Codec
-      FRAMES_PER_CHUNK,                       // Chunk length
-      MS2TS(250, 44100),                      // Latency (min 250ms)
-      raop_crypto_t::RAOP_CLEAR,              // Encryption
-      false, "", "",                          // Authentication and pairing secret
+      FRAMES_PER_CHUNK,                      // Chunk length
+      MS2TS(250, 44100),                     // Latency (min 250ms)
+      raop_crypto_t::RAOP_CLEAR,             // Encryption
+      false, "", "",                         // Authentication and pairing secret
       et_.data(), "",                        // Capabilities (as announced through mDNS)
       format.rate(), format.bits(), format.channels(),
       raopcl_float_volume(volume_.volume * 100)
@@ -143,9 +131,18 @@ void RAOPPlayer::worker()
 
     // Actually connect to the player
     if (!raopcl_connect(raopcl, addr, port_, true))
-        throw SnapException("Cannot connect to AirPlay device " + host_ + ":" + std::to_string(port_));
+        LOG(ERROR, LOG_TAG) << "Cannot connect to AirPlay device " << host_ << ":" << port_ << "\n";
 
-    LOG(INFO, LOG_TAG) << "Connected, start sending audio\n";
+    Player::start();
+}
+
+void RAOPPlayer::worker()
+{
+    // Create buffer for audio data
+    auto & format = stream_->getFormat();    
+    const auto buffer_size = FRAMES_PER_CHUNK * format.frameSize();
+    const auto buffer_duration = std::chrono::milliseconds(TS2MS(FRAMES_PER_CHUNK, format.rate()));
+    std::vector<uint8_t> buffer(buffer_size);
 
     // Get the latency in ms, as raop_latency() is expressed in frames
     const auto latency = std::chrono::milliseconds(TS2MS(raopcl_latency(raopcl), raopcl_sample_rate(raopcl)));
@@ -155,9 +152,9 @@ void RAOPPlayer::worker()
     uint64_t playtime;
     while (active_)
     {
-        if (!raopcl_is_sane(raopcl))
+        if (raopcl_state(raopcl) == RAOP_DOWN || !raopcl_is_sane(raopcl))
         {
-            LOG(ERROR, LOG_TAG) << "Broken connection, restoring...\n";
+            LOG(ERROR, LOG_TAG) << "Broken connection, reconnecting...\n";
             if (!raopcl_repair(raopcl, true))
             {
                 LOG(ERROR, LOG_TAG) << "Cannot reconnect, waiting 5s before retrying\n";
@@ -166,6 +163,7 @@ void RAOPPlayer::worker()
             }
             
             // Reconnected, restart streaming
+            LOG(INFO, LOG_TAG) << "Connected, start sending audio\n";
             paused = false;
         }
 
@@ -204,7 +202,8 @@ void RAOPPlayer::worker()
         {
             int newVol = volume_.mute ? 0 : volume_.volume * 100;
             LOG(INFO, LOG_TAG) << "Changing device volume to " << std::to_string(newVol) << "\n";
-            raopcl_set_volume(raopcl, raopcl_float_volume(newVol));
+            if (!raopcl_set_volume(raopcl, raopcl_float_volume(newVol)))
+                raopcl_disconnect(raopcl);
 
             volumeChangeRequested_ = false;
         }
