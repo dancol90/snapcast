@@ -34,6 +34,9 @@
 #ifdef HAS_PIPEWIRE
 #include "player/pipewire_player.hpp"
 #endif
+#ifdef HAS_RAOP
+#include "player/raop_player.hpp"
+#endif
 #include "player/file_player.hpp"
 #ifdef HAS_DAEMON
 #include "common/daemon.hpp"

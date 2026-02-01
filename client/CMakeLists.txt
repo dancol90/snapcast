@@ -72,6 +72,11 @@ elseif(NOT ANDROID)
     endif()
     link_directories(${PIPEWIRE_LIBRARY_DIRS})
   endif(PIPEWIRE_FOUND)
+
+  if(BUILD_WITH_RAOP)
+    list(APPEND CLIENT_SOURCES player/raop_player.hpp player/raop_player.cpp)
+    list(APPEND CLIENT_LIBRARIES libraop)
+  endif(BUILD_WITH_RAOP)
 endif(MACOSX)
 
 # SDL2 support
